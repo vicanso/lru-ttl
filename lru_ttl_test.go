@@ -35,7 +35,7 @@ func TestCache(t *testing.T) {
 
 	key1 := "foo1"
 	value1 := []byte("bar1")
-	cache.Add(key1, value1)
+	cache.Add(key1, value1, 100*time.Millisecond)
 	_, ok = cache.Get(key)
 	assert.False(ok)
 	assert.Equal(1, cache.Len())

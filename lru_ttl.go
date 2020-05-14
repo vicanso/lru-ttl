@@ -33,21 +33,27 @@ type cacheItem struct {
 }
 
 // New creates a new Cache.
-func New(maxEntries int, ttl time.Duration) *Cache {
-	if maxEntries <= 0 || ttl < 0 {
-		panic(errors.New("maxEntries and ttl must be gt 0"))
+func New(maxEntries int, defaultTTL time.Duration) *Cache {
+	if maxEntries <= 0 || defaultTTL < 0 {
+		panic(errors.New("maxEntries and default ttl must be gt 0"))
 	}
 	return &Cache{
 		MaxEntries: maxEntries,
-		TTL:        ttl,
+		TTL:        defaultTTL,
 		c:          lru.New(maxEntries),
 	}
 }
 
 // Add adds a value to the cache.
-func (c *Cache) Add(key string, value interface{}) {
+func (c *Cache) Add(key string, value interface{}, ttl ...time.Duration) {
+	expiredAt := time.Now().UnixNano()
+	if len(ttl) != 0 {
+		expiredAt += ttl[0].Nanoseconds()
+	} else {
+		expiredAt += c.TTL.Nanoseconds()
+	}
 	c.c.Add(key, &cacheItem{
-		expiredAt: time.Now().UnixNano() + c.TTL.Nanoseconds(),
+		expiredAt: expiredAt,
 		value:     value,
 	})
 }
