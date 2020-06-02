@@ -16,12 +16,14 @@ package lruttl
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/golang/groupcache/lru"
 )
 
 type Cache struct {
+	mutex      *sync.RWMutex
 	MaxEntries int
 	TTL        time.Duration
 	c          *lru.Cache
@@ -32,8 +34,15 @@ type cacheItem struct {
 	value     interface{}
 }
 
-// New creates a new Cache.
+// New creates a new cache with rw mutex
 func New(maxEntries int, defaultTTL time.Duration) *Cache {
+	c := NewWithoutRWMutex(maxEntries, defaultTTL)
+	c.mutex = new(sync.RWMutex)
+	return c
+}
+
+// NewWithoutRWMutex create a new cache without rw mutex
+func NewWithoutRWMutex(maxEntries int, defaultTTL time.Duration) *Cache {
 	if maxEntries <= 0 || defaultTTL < 0 {
 		panic(errors.New("maxEntries and default ttl must be gt 0"))
 	}
@@ -45,12 +54,16 @@ func New(maxEntries int, defaultTTL time.Duration) *Cache {
 }
 
 // Add adds a value to the cache.
-func (c *Cache) Add(key string, value interface{}, ttl ...time.Duration) {
+func (c *Cache) Add(key lru.Key, value interface{}, ttl ...time.Duration) {
 	expiredAt := time.Now().UnixNano()
 	if len(ttl) != 0 {
 		expiredAt += ttl[0].Nanoseconds()
 	} else {
 		expiredAt += c.TTL.Nanoseconds()
+	}
+	if c.mutex != nil {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
 	}
 	c.c.Add(key, &cacheItem{
 		expiredAt: expiredAt,
@@ -59,7 +72,11 @@ func (c *Cache) Add(key string, value interface{}, ttl ...time.Duration) {
 }
 
 // Get gets a key's value from the cache.
-func (c *Cache) Get(key string) (value interface{}, ok bool) {
+func (c *Cache) Get(key lru.Key) (value interface{}, ok bool) {
+	if c.mutex != nil {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+	}
 	data, ok := c.c.Get(key)
 	if !ok {
 		return
@@ -78,11 +95,19 @@ func (c *Cache) Get(key string) (value interface{}, ok bool) {
 }
 
 // Remove removes the key's value from the cache.
-func (c *Cache) Remove(key string) {
+func (c *Cache) Remove(key lru.Key) {
+	if c.mutex != nil {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+	}
 	c.c.Remove(key)
 }
 
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
+	if c.mutex != nil {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+	}
 	return c.c.Len()
 }
