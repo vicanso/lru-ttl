@@ -43,7 +43,7 @@ func New(maxEntries int, defaultTTL time.Duration) *Cache {
 
 // NewWithoutRWMutex create a new cache without rw mutex
 func NewWithoutRWMutex(maxEntries int, defaultTTL time.Duration) *Cache {
-	if maxEntries <= 0 || defaultTTL < 0 {
+	if maxEntries <= 0 || defaultTTL <= 0 {
 		panic(errors.New("maxEntries and default ttl must be gt 0"))
 	}
 	return &Cache{
@@ -75,9 +75,12 @@ func (c *Cache) Add(key lru.Key, value interface{}, ttl ...time.Duration) {
 func (c *Cache) Get(key lru.Key) (value interface{}, ok bool) {
 	if c.mutex != nil {
 		c.mutex.RLock()
-		defer c.mutex.RUnlock()
 	}
 	data, ok := c.c.Get(key)
+	// release lock asap
+	if c.mutex != nil {
+		c.mutex.RUnlock()
+	}
 	if !ok {
 		return
 	}
