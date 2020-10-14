@@ -18,20 +18,22 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/golang/groupcache/lru"
 )
 
 type Cache struct {
 	mutex      *sync.RWMutex
 	MaxEntries int
 	TTL        time.Duration
-	c          *lru.Cache
+	lru        *LRUCache
 }
 
 type cacheItem struct {
 	expiredAt int64
 	value     interface{}
+}
+
+func (item *cacheItem) isExpired() bool {
+	return item.expiredAt < time.Now().UnixNano()
 }
 
 // New creates a new cache with rw mutex
@@ -49,12 +51,12 @@ func NewWithoutRWMutex(maxEntries int, defaultTTL time.Duration) *Cache {
 	return &Cache{
 		MaxEntries: maxEntries,
 		TTL:        defaultTTL,
-		c:          lru.New(maxEntries),
+		lru:        NewLRU(maxEntries),
 	}
 }
 
 // Add adds a value to the cache.
-func (c *Cache) Add(key lru.Key, value interface{}, ttl ...time.Duration) {
+func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 	expiredAt := time.Now().UnixNano()
 	if len(ttl) != 0 {
 		expiredAt += ttl[0].Nanoseconds()
@@ -65,18 +67,18 @@ func (c *Cache) Add(key lru.Key, value interface{}, ttl ...time.Duration) {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
 	}
-	c.c.Add(key, &cacheItem{
+	c.lru.Add(key, &cacheItem{
 		expiredAt: expiredAt,
 		value:     value,
 	})
 }
 
 // Get gets a key's value from the cache.
-func (c *Cache) Get(key lru.Key) (value interface{}, ok bool) {
+func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	if c.mutex != nil {
 		c.mutex.RLock()
 	}
-	data, ok := c.c.Get(key)
+	data, ok := c.lru.Get(key)
 	// release lock asap
 	if c.mutex != nil {
 		c.mutex.RUnlock()
@@ -88,7 +90,7 @@ func (c *Cache) Get(key lru.Key) (value interface{}, ok bool) {
 	if !ok {
 		return
 	}
-	if item.expiredAt < time.Now().UnixNano() {
+	if item.isExpired() {
 		ok = false
 		return
 	}
@@ -98,19 +100,41 @@ func (c *Cache) Get(key lru.Key) (value interface{}, ok bool) {
 }
 
 // Remove removes the key's value from the cache.
-func (c *Cache) Remove(key lru.Key) {
+func (c *Cache) Remove(key Key) {
 	if c.mutex != nil {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
 	}
-	c.c.Remove(key)
+	c.lru.Remove(key)
 }
 
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
+	return len(c.Keys())
+}
+
+// ForEach for each the items of cache
+func (c *Cache) ForEach(fn func(key Key, value interface{})) {
 	if c.mutex != nil {
 		c.mutex.RLock()
 		defer c.mutex.RUnlock()
 	}
-	return c.c.Len()
+	for _, e := range c.lru.cache {
+		kv := e.Value.(*entry)
+		item, ok := kv.value.(*cacheItem)
+		if !ok || item.isExpired() {
+			continue
+		}
+		// 返回key与value
+		fn(kv.key, item.value)
+	}
+}
+
+// Keys get all keys of cache
+func (c *Cache) Keys() []Key {
+	result := make([]Key, 0)
+	c.ForEach(func(key Key, _ interface{}) {
+		result = append(result, key)
+	})
+	return result
 }

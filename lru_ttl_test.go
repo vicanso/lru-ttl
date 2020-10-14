@@ -50,4 +50,18 @@ func TestCache(t *testing.T) {
 	assert.Equal(1, cache.Len())
 	cache.Remove(key)
 	assert.Equal(0, cache.Len())
+
+	max := 10
+	cache = New(max, time.Minute)
+	for i := 0; i < 2*max; i++ {
+		cache.Add(i, i)
+	}
+	assert.Equal(max, cache.Len())
+	cache.ForEach(func(key Key, v interface{}) {
+		index, ok := key.(int)
+		assert.True(ok)
+		value, ok := v.(int)
+		assert.True(ok)
+		assert.Equal(index, value)
+	})
 }
