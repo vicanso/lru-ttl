@@ -66,6 +66,7 @@ func TestRemove(t *testing.T) {
 	val, ok := lru.Get("myKey")
 	assert.True(ok)
 	assert.Equal(1234, val)
+	assert.Equal(1, lru.Len())
 
 	lru.Remove("myKey")
 	_, ok = lru.Get("myKey")

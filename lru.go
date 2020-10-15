@@ -120,11 +120,18 @@ func (c *LRUCache) Len() int {
 // Clear purges all stored items from the cache.
 func (c *LRUCache) Clear() {
 	if c.OnEvicted != nil {
-		for _, e := range c.cache {
-			kv := e.Value.(*entry)
-			c.OnEvicted(kv.key, kv.value)
-		}
+		c.ForEach(func(key Key, value interface{}) {
+			c.OnEvicted(key, value)
+		})
 	}
 	c.ll = nil
 	c.cache = nil
+}
+
+// ForEach for each function
+func (c *LRUCache) ForEach(fn func(key Key, value interface{})) {
+	for _, e := range c.cache {
+		kv := e.Value.(*entry)
+		fn(kv.key, kv.value)
+	}
 }

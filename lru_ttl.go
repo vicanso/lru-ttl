@@ -39,7 +39,7 @@ func (item *cacheItem) isExpired() bool {
 // New creates a new cache with rw mutex
 func New(maxEntries int, defaultTTL time.Duration) *Cache {
 	c := NewWithoutRWMutex(maxEntries, defaultTTL)
-	c.mutex = new(sync.RWMutex)
+	c.mutex = &sync.RWMutex{}
 	return c
 }
 
@@ -77,12 +77,9 @@ func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	if c.mutex != nil {
 		c.mutex.RLock()
+		defer c.mutex.RUnlock()
 	}
 	data, ok := c.lru.Get(key)
-	// release lock asap
-	if c.mutex != nil {
-		c.mutex.RUnlock()
-	}
 	if !ok {
 		return
 	}
@@ -92,6 +89,7 @@ func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	}
 	if item.isExpired() {
 		ok = false
+		// TODO 元素已经过期，是否需要清除
 		return
 	}
 	value = item.value
@@ -110,24 +108,27 @@ func (c *Cache) Remove(key Key) {
 
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
-	return len(c.Keys())
+	count := 0
+	c.ForEach(func(key Key, _ interface{}) {
+		count++
+	})
+	return count
 }
 
-// ForEach for each the items of cache
+// ForEach for each function
 func (c *Cache) ForEach(fn func(key Key, value interface{})) {
 	if c.mutex != nil {
 		c.mutex.RLock()
 		defer c.mutex.RUnlock()
 	}
-	for _, e := range c.lru.cache {
-		kv := e.Value.(*entry)
-		item, ok := kv.value.(*cacheItem)
+	c.lru.ForEach(func(lruKey Key, lruValue interface{}) {
+		item, ok := lruValue.(*cacheItem)
 		if !ok || item.isExpired() {
-			continue
+			return
 		}
 		// 返回key与value
-		fn(kv.key, item.value)
-	}
+		fn(lruKey, item.value)
+	})
 }
 
 // Keys get all keys of cache

@@ -57,6 +57,7 @@ func TestCache(t *testing.T) {
 		cache.Add(i, i)
 	}
 	assert.Equal(max, cache.Len())
+	assert.Equal(max, len(cache.Keys()))
 	cache.ForEach(func(key Key, v interface{}) {
 		index, ok := key.(int)
 		assert.True(ok)
