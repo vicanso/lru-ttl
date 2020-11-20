@@ -109,18 +109,16 @@ func (c *Cache) Remove(key Key) {
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
 	count := 0
-	c.ForEach(func(key Key, _ interface{}) {
+	c.forEach(func(key Key, _ interface{}) {
 		count++
 	})
 	return count
 }
 
-// ForEach for each function
-func (c *Cache) ForEach(fn func(key Key, value interface{})) {
-	if c.mutex != nil {
-		c.mutex.RLock()
-		defer c.mutex.RUnlock()
-	}
+// forEach for each function
+// 避免public的方法之间的调用，public的方法只调用private的方法
+// 由于只有public的方法会使用锁，这样可以避免代码有误导致死锁
+func (c *Cache) forEach(fn func(key Key, value interface{})) {
 	c.lru.ForEach(func(lruKey Key, lruValue interface{}) {
 		item, ok := lruValue.(*cacheItem)
 		if !ok || item.isExpired() {
@@ -131,10 +129,19 @@ func (c *Cache) ForEach(fn func(key Key, value interface{})) {
 	})
 }
 
+// ForEach for each function
+func (c *Cache) ForEach(fn func(key Key, value interface{})) {
+	if c.mutex != nil {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+	}
+	c.forEach(fn)
+}
+
 // Keys get all keys of cache
 func (c *Cache) Keys() []Key {
 	result := make([]Key, 0)
-	c.ForEach(func(key Key, _ interface{}) {
+	c.forEach(func(key Key, _ interface{}) {
 		result = append(result, key)
 	})
 	return result
