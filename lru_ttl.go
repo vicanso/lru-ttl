@@ -108,6 +108,10 @@ func (c *Cache) Remove(key Key) {
 
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
+	if c.mutex != nil {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+	}
 	count := 0
 	c.forEach(func(key Key, _ interface{}) {
 		count++
@@ -140,6 +144,10 @@ func (c *Cache) ForEach(fn func(key Key, value interface{})) {
 
 // Keys get all keys of cache
 func (c *Cache) Keys() []Key {
+	if c.mutex != nil {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+	}
 	result := make([]Key, 0)
 	c.forEach(func(key Key, _ interface{}) {
 		result = append(result, key)

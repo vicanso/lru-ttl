@@ -1,6 +1,6 @@
 # lru-ttl
 
-[![Build Status](https://img.shields.io/travis/vicanso/lru-ttl.svg?label=linux+build)](https://travis-ci.org/vicanso/lru-ttl)
+[![Build Status](https://github.com/vicanso/lru-ttl/workflows/Test/badge.svg)](https://github.com/vicanso/lru-ttl/actions)
 
 LRU cache with ttl. It's useful for short ttl cache. 
 
