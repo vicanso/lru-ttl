@@ -21,10 +21,9 @@ import (
 )
 
 type Cache struct {
-	mutex      *sync.RWMutex
-	MaxEntries int
-	TTL        time.Duration
-	lru        *LRUCache
+	mutex *sync.RWMutex
+	ttl   time.Duration
+	lru   *LRUCache
 }
 
 type cacheItem struct {
@@ -49,9 +48,8 @@ func NewWithoutRWMutex(maxEntries int, defaultTTL time.Duration) *Cache {
 		panic(errors.New("maxEntries and default ttl must be gt 0"))
 	}
 	return &Cache{
-		MaxEntries: maxEntries,
-		TTL:        defaultTTL,
-		lru:        NewLRU(maxEntries),
+		ttl: defaultTTL,
+		lru: NewLRU(maxEntries),
 	}
 }
 
@@ -61,7 +59,7 @@ func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 	if len(ttl) != 0 {
 		expiredAt += ttl[0].Nanoseconds()
 	} else {
-		expiredAt += c.TTL.Nanoseconds()
+		expiredAt += c.ttl.Nanoseconds()
 	}
 	if c.mutex != nil {
 		c.mutex.Lock()
@@ -87,12 +85,13 @@ func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	if !ok {
 		return
 	}
+	// 过期的元素数据也返回，但ok为false
+	value = item.value
 	if item.isExpired() {
 		ok = false
 		// TODO 元素已经过期，是否需要清除
 		return
 	}
-	value = item.value
 	ok = true
 	return
 }
