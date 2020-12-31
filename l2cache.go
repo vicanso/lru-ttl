@@ -29,6 +29,7 @@ type SlowCache interface {
 // lru cache should be set max entries for less memory usage but faster,
 // slow cache is slower but more space
 type L2Cache struct {
+	prefix    string
 	ttl       time.Duration
 	ttlCache  *Cache
 	slowCache SlowCache
@@ -59,8 +60,18 @@ func (l2 *L2Cache) SetUnmarshal(fn func(data []byte, v interface{}) error) {
 	l2.unmarshal = fn
 }
 
+// SetPrefix set prefix for l2cache key
+func (l2 *L2Cache) SetPrefix(prefix string) {
+	l2.prefix = prefix
+}
+
+func (l2 *L2Cache) getKey(key string) string {
+	return l2.prefix + key
+}
+
 // Get get value from cache
 func (l2 *L2Cache) Get(key string, value interface{}) (err error) {
+	key = l2.getKey(key)
 	v, ok := l2.ttlCache.Get(key)
 	// 如果获取到的不为空，但是ok为false
 	// 表示数据已过期
@@ -87,6 +98,7 @@ func (l2 *L2Cache) Get(key string, value interface{}) (err error) {
 
 // Set set value to cache
 func (l2 *L2Cache) Set(key string, value interface{}) (err error) {
+	key = l2.getKey(key)
 	buf, err := l2.marshal(value)
 	if err != nil {
 		return

@@ -52,6 +52,9 @@ func TestL2Cache(t *testing.T) {
 	l2 := NewL2Cache(&sc, 1, time.Second)
 	l2.SetMarshal(json.Marshal)
 	l2.SetUnmarshal(json.Unmarshal)
+	l2.SetPrefix("prefix:")
+
+	assert.Equal("prefix:1", l2.getKey("1"))
 
 	key := "abcd"
 	name := "test"
