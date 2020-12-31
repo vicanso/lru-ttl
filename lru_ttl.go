@@ -21,9 +21,10 @@ import (
 )
 
 type Cache struct {
-	mutex *sync.RWMutex
-	ttl   time.Duration
-	lru   *LRUCache
+	mutex     *sync.RWMutex
+	ttl       time.Duration
+	lru       *LRUCache
+	onEvicted func(key Key, value interface{})
 }
 
 type cacheItem struct {
@@ -51,6 +52,12 @@ func NewWithoutRWMutex(maxEntries int, defaultTTL time.Duration) *Cache {
 		ttl: defaultTTL,
 		lru: NewLRU(maxEntries),
 	}
+}
+
+// SetOnEvicted set on evicted function
+func (c *Cache) SetOnEvicted(fn func(key Key, value interface{})) {
+	c.onEvicted = fn
+	c.lru.OnEvicted = fn
 }
 
 // Add adds a value to the cache.
@@ -89,7 +96,7 @@ func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	value = item.value
 	if item.isExpired() {
 		ok = false
-		// TODO 元素已经过期，是否需要清除
+		c.lru.Remove(key)
 		return
 	}
 	ok = true

@@ -66,3 +66,29 @@ func TestCache(t *testing.T) {
 		assert.Equal(index, value)
 	})
 }
+
+func TestCacheOnEvicted(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := New(1, 300*time.Millisecond)
+
+	evictedCount := 0
+	evictedKeys := []string{
+		"test1",
+		"test2",
+	}
+	cache.SetOnEvicted(func(key Key, value interface{}) {
+		assert.Equal(key, evictedKeys[evictedCount])
+		evictedCount++
+	})
+
+	cache.Add("test1", "value1")
+	cache.Add("test2", "value2")
+
+	time.Sleep(500 * time.Millisecond)
+	// 此时再次获取，该key已过期，也会触发evicted
+	cache.Get("test2")
+
+	assert.Equal(2, evictedCount)
+
+}
