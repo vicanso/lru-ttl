@@ -15,6 +15,7 @@
 package lruttl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"time"
@@ -38,6 +39,26 @@ type L2Cache struct {
 }
 
 var ErrIsNil = errors.New("cache is nil")
+var ErrInvalidType = errors.New("invalid type")
+
+// BufferMarshal buffer marshal
+func BufferMarshal(v interface{}) ([]byte, error) {
+	buf, ok := v.(*bytes.Buffer)
+	if !ok {
+		return nil, ErrInvalidType
+	}
+	return buf.Bytes(), nil
+}
+
+// BufferUnmarshal buffer unmarshal
+func BufferUnmarshal(data []byte, v interface{}) error {
+	buf, ok := v.(*bytes.Buffer)
+	if !ok {
+		return ErrInvalidType
+	}
+	buf.Write(data)
+	return nil
+}
 
 // NewL2Cache create a new l2cache
 func NewL2Cache(slowCache SlowCache, maxEntries int, defaultTTL time.Duration) *L2Cache {

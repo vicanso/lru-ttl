@@ -14,6 +14,7 @@
 package lruttl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -91,4 +92,17 @@ func TestL2Cache(t *testing.T) {
 	err = l2.Get(key, &m)
 	assert.Nil(err)
 	assert.Equal("newName", m["name"])
+}
+
+func TestBufferMarshalUnmarshal(t *testing.T) {
+	assert := assert.New(t)
+	buf := bytes.NewBufferString("abc")
+	result, err := BufferMarshal(buf)
+	assert.Nil(err)
+	assert.Equal(buf.Bytes(), result)
+
+	newBuf := &bytes.Buffer{}
+	err = BufferUnmarshal(result, newBuf)
+	assert.Nil(err)
+	assert.Equal(buf, newBuf)
 }
