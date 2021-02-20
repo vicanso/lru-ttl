@@ -78,11 +78,12 @@ func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 	})
 }
 
-// Get gets a key's value from the cache.
+// Get get a key's value from the cache.
 func (c *Cache) Get(key Key) (value interface{}, ok bool) {
+	// 因为会更新其顺序，因此需要使用写锁
 	if c.mutex != nil {
-		c.mutex.RLock()
-		defer c.mutex.RUnlock()
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
 	}
 	data, ok := c.lru.Get(key)
 	if !ok {
@@ -97,6 +98,32 @@ func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	if item.isExpired() {
 		ok = false
 		c.lru.Remove(key)
+		return
+	}
+	ok = true
+	return
+}
+
+// Peek get a key's value from the cache, but move to front.
+func (c *Cache) Peek(key Key) (value interface{}, ok bool) {
+	// 因为不会更新其顺序，因此可以使用读锁
+	if c.mutex != nil {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+	}
+	data, ok := c.lru.Peek(key)
+	if !ok {
+		return
+	}
+	item, ok := data.(*cacheItem)
+	if !ok {
+		return
+	}
+	// 过期的元素数据也返回，但ok为false
+	value = item.value
+	if item.isExpired() {
+		ok = false
+		// 过期不清除
 		return
 	}
 	ok = true

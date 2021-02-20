@@ -15,6 +15,7 @@
 package lruttl
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,10 @@ func TestCache(t *testing.T) {
 	cache.Add(key, value)
 	assert.Equal(1, cache.Len())
 	data, ok := cache.Get(key)
+	assert.True(ok)
+	assert.Equal(value, data)
+
+	data, ok = cache.Peek(key)
 	assert.True(ok)
 	assert.Equal(value, data)
 
@@ -65,6 +70,100 @@ func TestCache(t *testing.T) {
 		assert.True(ok)
 		assert.Equal(index, value)
 	})
+}
+
+func TestParallelAdd(t *testing.T) {
+	assert := assert.New(t)
+	cache := New(10, time.Second)
+	key1 := "1"
+	value1 := "value1"
+	key2 := "2"
+	value2 := "value2"
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		if i%2 == 0 {
+			go func() {
+				cache.Add(key1, value1)
+				wg.Done()
+			}()
+		} else {
+			go func() {
+				cache.Add(key2, value2)
+				wg.Done()
+			}()
+		}
+	}
+	wg.Wait()
+	value, ok := cache.Get(key1)
+	assert.True(ok)
+	assert.Equal(value1, value)
+
+	value, ok = cache.Get(key2)
+	assert.True(ok)
+	assert.Equal(value2, value)
+}
+
+func TestParallelGet(t *testing.T) {
+	assert := assert.New(t)
+	cache := New(10, time.Second)
+	key1 := "1"
+	value1 := "value1"
+	cache.Add(key1, value1)
+	key2 := "2"
+	value2 := "value2"
+	cache.Add(key2, value2)
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		if i%2 == 0 {
+			go func() {
+				value, ok := cache.Get(key1)
+				assert.True(ok)
+				assert.Equal(value1, value)
+				wg.Done()
+			}()
+		} else {
+			go func() {
+				value, ok := cache.Get(key2)
+				assert.True(ok)
+				assert.Equal(value2, value)
+				wg.Done()
+			}()
+		}
+	}
+	wg.Wait()
+}
+
+func TestParallelPeek(t *testing.T) {
+	assert := assert.New(t)
+	cache := New(10, time.Second)
+	key1 := "1"
+	value1 := "value1"
+	cache.Add(key1, value1)
+	key2 := "2"
+	value2 := "value2"
+	cache.Add(key2, value2)
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		if i%2 == 0 {
+			go func() {
+				value, ok := cache.Peek(key1)
+				assert.True(ok)
+				assert.Equal(value1, value)
+				wg.Done()
+			}()
+		} else {
+			go func() {
+				value, ok := cache.Peek(key2)
+				assert.True(ok)
+				assert.Equal(value2, value)
+				wg.Done()
+			}()
+		}
+	}
+	wg.Wait()
 }
 
 func TestCacheOnEvicted(t *testing.T) {

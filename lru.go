@@ -79,6 +79,18 @@ func (c *LRUCache) Get(key Key) (value interface{}, ok bool) {
 	return
 }
 
+// Peek looks up a key's value from the cache but move to front.
+func (c *LRUCache) Peek(key Key) (value interface{}, ok bool) {
+	if c.cache == nil {
+		return
+	}
+	ele, hit := c.cache[key]
+	if !hit {
+		return
+	}
+	return ele.Value.(*entry).value, true
+}
+
 // Remove removes the provided key from the cache.
 func (c *LRUCache) Remove(key Key) {
 	if c.cache == nil {
