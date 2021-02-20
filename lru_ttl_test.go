@@ -63,13 +63,6 @@ func TestCache(t *testing.T) {
 	}
 	assert.Equal(max, cache.Len())
 	assert.Equal(max, len(cache.Keys()))
-	cache.ForEach(func(key Key, v interface{}) {
-		index, ok := key.(int)
-		assert.True(ok)
-		value, ok := v.(int)
-		assert.True(ok)
-		assert.Equal(index, value)
-	})
 }
 
 func TestParallelAdd(t *testing.T) {
