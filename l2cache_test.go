@@ -50,10 +50,12 @@ func TestL2Cache(t *testing.T) {
 	sc := testSlowCache{
 		data: make(map[string][]byte),
 	}
-	l2 := NewL2Cache(&sc, 1, time.Second)
-	l2.SetMarshal(json.Marshal)
-	l2.SetUnmarshal(json.Unmarshal)
-	l2.SetPrefix("prefix:")
+	opts := []L2CacheOption{
+		L2CacheMarshalOption(json.Marshal),
+		L2CacheUnmarshalOption(json.Unmarshal),
+		L2CachePrefixOption("prefix:"),
+	}
+	l2 := NewL2Cache(&sc, 1, time.Second, opts...)
 
 	assert.Equal("prefix:1", l2.getKey("1"))
 

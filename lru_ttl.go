@@ -30,6 +30,9 @@ type Cache struct {
 	onEvicted func(key Key, value interface{})
 }
 
+// CacheOption cache option
+type CacheOption func(c *Cache)
+
 type cacheItem struct {
 	expiredAt int64
 	value     interface{}
@@ -39,8 +42,8 @@ func (item *cacheItem) isExpired() bool {
 	return item.expiredAt < time.Now().UnixNano()
 }
 
-// New creates a new cache with rw mutex
-func New(maxEntries int, defaultTTL time.Duration) *Cache {
+// New returns a new lru cache with ttl
+func New(maxEntries int, defaultTTL time.Duration, opts ...CacheOption) *Cache {
 	if maxEntries <= 0 || defaultTTL <= 0 {
 		panic(errors.New("maxEntries and default ttl must be gt 0"))
 	}
@@ -56,16 +59,21 @@ func New(maxEntries int, defaultTTL time.Duration) *Cache {
 		panic(err)
 	}
 	c.lru = l
+	for _, opt := range opts {
+		opt(c)
+	}
 	return c
 
 }
 
-// SetOnEvicted set on evicted function
-func (c *Cache) SetOnEvicted(fn func(key Key, value interface{})) {
-	c.onEvicted = fn
+// CacheEvictedOption sets evicted function to cache
+func CacheEvictedOption(fn func(key Key, value interface{})) CacheOption {
+	return func(c *Cache) {
+		c.onEvicted = fn
+	}
 }
 
-// Add add a value to the cache.
+// Add adds a value to the cache, it will use default ttl if the ttl is nil.
 func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 	expiredAt := time.Now().UnixNano()
 	if len(ttl) != 0 {
@@ -79,7 +87,8 @@ func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 	})
 }
 
-// Get get value from the cache by key, if value is expired then remove it.
+// Get returns value and exists from the cache by key, if value is expired then remove it.
+// If the value is expired, value is not nil but exists is false.
 func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	data, ok := c.lru.Get(key)
 	if !ok {
@@ -103,6 +112,7 @@ func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 
 // Peek get a key's value from the cache, but not move to front.
 // The performance is better than get.
+// It will not remove it if the cache is expired.
 func (c *Cache) Peek(key Key) (value interface{}, ok bool) {
 	data, ok := c.lru.Peek(key)
 	if !ok {
@@ -133,7 +143,7 @@ func (c *Cache) Len() int {
 	return c.lru.Len()
 }
 
-// Keys get all keys of cache
+// Keys gets all keys of cache
 func (c *Cache) Keys() []Key {
 	keys := c.lru.Keys()
 	result := make([]Key, len(keys))

@@ -162,17 +162,15 @@ func TestParallelPeek(t *testing.T) {
 func TestCacheOnEvicted(t *testing.T) {
 	assert := assert.New(t)
 
-	cache := New(1, 300*time.Millisecond)
-
 	evictedCount := 0
 	evictedKeys := []string{
 		"test1",
 		"test2",
 	}
-	cache.SetOnEvicted(func(key Key, value interface{}) {
+	cache := New(1, 300*time.Millisecond, CacheEvictedOption(func(key Key, value interface{}) {
 		assert.Equal(key, evictedKeys[evictedCount])
 		evictedCount++
-	})
+	}))
 
 	cache.Add("test1", "value1")
 	cache.Add("test2", "value2")
