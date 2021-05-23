@@ -124,19 +124,16 @@ func (l2 *L2Cache) getKey(key string) string {
 func (l2 *L2Cache) Get(key string, result interface{}) (err error) {
 	key = l2.getKey(key)
 	v, ok := l2.ttlCache.Get(key)
-	// 如果获取到数据不为空，但是ok为false
-	// 表示数据已过期，数据已过期则返回ErrIsNil
-	if v != nil && !ok {
-		err = ErrIsNil
-		return
-	}
 	var buf []byte
-	// 从lru中获取到可用数据
-	if ok {
+	// 获取成功，而数据不为nil
+	// 如果ok为false时，数据也可能不为空（已过期）
+	if ok && v != nil {
 		buf, _ = v.([]byte)
 	}
-	// 从lru中数据不存在
+	// 从lru中获取到可用数据
+	// 从lru中数据不存在（数据不存在或过期都有可能）
 	// 有可能数据未过期但lru空间较小，因此被删除
+	// 也有可能lru中数据过期但 slow cache中数据已更新
 	if len(buf) == 0 {
 		buf, err = l2.slowCache.Get(key)
 		if err != nil {
