@@ -30,3 +30,14 @@ err = l2.Get("key", &m)
 fmt.Println(err)
 fmt.Println(m)
 ```
+
+## Ring
+
+```go
+ringCache := lruttl.NewRing(lruttl.RingCacheParams{
+    Size:       10,
+    MaxEntries: 1000,
+    DefaultTTL: time.Minute,
+})
+lruCache := ringCache("key")
+```

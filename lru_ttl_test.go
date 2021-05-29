@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCache(t *testing.T) {
+func TestLRUTTL(t *testing.T) {
 	assert := assert.New(t)
 	cache := New(1, 300*time.Millisecond)
 	key := "foo"
@@ -65,7 +65,23 @@ func TestCache(t *testing.T) {
 	assert.Equal(max, len(cache.Keys()))
 }
 
-func TestParallelAdd(t *testing.T) {
+func TestLRUTTLGetTTL(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := New(10, time.Minute)
+	key := "test"
+	itemTTL := 100 * time.Millisecond
+
+	cache.Add(key, "a", itemTTL)
+	ttl := cache.TTL(key)
+	assert.True(ttl > (itemTTL/2) && ttl <= itemTTL)
+	// 等待过期
+	time.Sleep(2 * itemTTL)
+	ttl = cache.TTL(key)
+	assert.Equal(time.Duration(-1), ttl)
+}
+
+func TestLRUTTLParallelAdd(t *testing.T) {
 	assert := assert.New(t)
 	cache := New(10, time.Second)
 	key1 := "1"
@@ -97,7 +113,7 @@ func TestParallelAdd(t *testing.T) {
 	assert.Equal(value2, value)
 }
 
-func TestParallelGet(t *testing.T) {
+func TestLRUTTLParallelGet(t *testing.T) {
 	assert := assert.New(t)
 	cache := New(10, time.Second)
 	key1 := "1"
@@ -128,7 +144,7 @@ func TestParallelGet(t *testing.T) {
 	wg.Wait()
 }
 
-func TestParallelPeek(t *testing.T) {
+func TestLRUTTLParallelPeek(t *testing.T) {
 	assert := assert.New(t)
 	cache := New(10, time.Second)
 	key1 := "1"
@@ -159,7 +175,7 @@ func TestParallelPeek(t *testing.T) {
 	wg.Wait()
 }
 
-func TestCacheOnEvicted(t *testing.T) {
+func TestLRUTTLCacheOnEvicted(t *testing.T) {
 	assert := assert.New(t)
 
 	evictedCount := 0

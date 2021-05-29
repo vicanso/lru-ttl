@@ -28,6 +28,7 @@ import (
 type SlowCache interface {
 	Get(key string) ([]byte, error)
 	Set(key string, value []byte, ttl time.Duration) error
+	TTL(key string) (time.Duration, error)
 }
 
 // L2CacheOption l2cache option
@@ -118,6 +119,16 @@ func (l2 *L2Cache) getKey(key string) string {
 	return l2.prefix + key
 }
 
+// TTL returns the ttl for key
+func (l2 *L2Cache) TTL(key string) (time.Duration, error) {
+	key = l2.getKey(key)
+	d := l2.ttlCache.TTL(key)
+	if d > 0 {
+		return d, nil
+	}
+	return l2.slowCache.TTL(key)
+}
+
 // Get first get cache from lru, if not exists,
 // then get the data from slow cache.
 // Use unmarshal function covert the data to result
@@ -139,6 +150,13 @@ func (l2 *L2Cache) Get(key string, result interface{}) (err error) {
 		if err != nil {
 			return
 		}
+		// 成功从slowcache获取缓存，则将数据设置回lru ttl
+		if len(buf) != 0 {
+			ttl, _ := l2.slowCache.TTL(key)
+			if ttl != 0 {
+				l2.ttlCache.Add(key, buf, ttl)
+			}
+		}
 	}
 	fn := l2.unmarshal
 	if fn == nil {
@@ -152,7 +170,7 @@ func (l2 *L2Cache) Get(key string, result interface{}) (err error) {
 }
 
 // Set converts the value to bytes, then set it to lru cache and slow cache
-func (l2 *L2Cache) Set(key string, value interface{}) (err error) {
+func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) (err error) {
 	key = l2.getKey(key)
 	fn := l2.marshal
 	if fn == nil {
@@ -162,11 +180,15 @@ func (l2 *L2Cache) Set(key string, value interface{}) (err error) {
 	if err != nil {
 		return
 	}
+	t := l2.ttl
+	if len(ttl) != 0 {
+		t = ttl[0]
+	}
 	// 先设置较慢的缓存
-	err = l2.slowCache.Set(key, buf, l2.ttl)
+	err = l2.slowCache.Set(key, buf, t)
 	if err != nil {
 		return
 	}
-	l2.ttlCache.Add(key, buf)
+	l2.ttlCache.Add(key, buf, t)
 	return
 }

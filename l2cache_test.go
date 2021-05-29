@@ -27,17 +27,23 @@ type testSlowCache struct {
 	data map[string][]byte
 }
 
+const slowCacheTTL = 101 * time.Millisecond
+
 func (sc *testSlowCache) Get(key string) ([]byte, error) {
 	buf, ok := sc.data[key]
 	if !ok {
 		return nil, errors.New("not found")
 	}
+	time.Sleep(time.Second)
 	return buf, nil
 }
 
 func (sc *testSlowCache) Set(key string, value []byte, ttl time.Duration) error {
 	sc.data[key] = value
 	return nil
+}
+func (sc *testSlowCache) TTL(key string) (time.Duration, error) {
+	return slowCacheTTL, nil
 }
 
 type testData struct {
@@ -81,10 +87,18 @@ func TestL2Cache(t *testing.T) {
 	err = l2.Set("ab", &testData{})
 	assert.Nil(err)
 
-	// 从slow cache中获取
+	// 从slow cache中获取数据并更新lru缓存
 	err = l2.Get(key, &data)
 	assert.Nil(err)
 	assert.Equal(name, data.Name)
+
+	// 从lru获取缓存（时间较快)
+	start := time.Now()
+	err = l2.Get(key, &data)
+	assert.Nil(err)
+	assert.Equal(name, data.Name)
+	// 从lru获取耗时少于10ms
+	assert.True(time.Since(start) < 10*time.Millisecond)
 
 	err = l2.Set(key, &map[string]string{
 		"name": "newName",
@@ -94,6 +108,29 @@ func TestL2Cache(t *testing.T) {
 	err = l2.Get(key, &m)
 	assert.Nil(err)
 	assert.Equal("newName", m["name"])
+}
+
+func TestL2CacheTTL(t *testing.T) {
+	assert := assert.New(t)
+	sc := testSlowCache{
+		data: make(map[string][]byte),
+	}
+	l2 := NewL2Cache(&sc, 10, 10*time.Second)
+	key := "test"
+	err := l2.Set(key, "value", 2*time.Second)
+	assert.Nil(err)
+
+	ttl, err := l2.TTL(key)
+	assert.Nil(err)
+	// 从lru中获取
+	assert.True(ttl > time.Second && ttl <= 2*time.Second)
+
+	l2.ttlCache.Remove(key)
+
+	ttl, err = l2.TTL(key)
+	assert.Nil(err)
+	// 从slow cache中获取，slow cache获取ttl为固定值
+	assert.Equal(slowCacheTTL, ttl)
 }
 
 func TestBufferMarshalUnmarshal(t *testing.T) {

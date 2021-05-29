@@ -110,6 +110,26 @@ func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	return
 }
 
+// TTL returns the ttl of key
+func (c *Cache) TTL(key Key) time.Duration {
+	data, ok := c.lru.Peek(key)
+	if !ok {
+		// 元素不存在
+		return time.Duration(-2)
+	}
+	item, ok := data.(*cacheItem)
+	if !ok {
+		// 元素转换失败则认为不存在
+		return time.Duration(-2)
+	}
+	now := time.Now().UnixNano()
+	if item.expiredAt <= now {
+		// 元素已过期
+		return time.Duration(-1)
+	}
+	return time.Duration(item.expiredAt - now)
+}
+
 // Peek get a key's value from the cache, but not move to front.
 // The performance is better than get.
 // It will not remove it if the cache is expired.
