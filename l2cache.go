@@ -132,7 +132,7 @@ func (l2 *L2Cache) TTL(key string) (time.Duration, error) {
 // Get first get cache from lru, if not exists,
 // then get the data from slow cache.
 // Use unmarshal function covert the data to result
-func (l2 *L2Cache) Get(key string, result interface{}) (err error) {
+func (l2 *L2Cache) Get(key string, result interface{}) error {
 	key = l2.getKey(key)
 	v, ok := l2.ttlCache.Get(key)
 	var buf []byte
@@ -146,10 +146,11 @@ func (l2 *L2Cache) Get(key string, result interface{}) (err error) {
 	// 有可能数据未过期但lru空间较小，因此被删除
 	// 也有可能lru中数据过期但 slow cache中数据已更新
 	if len(buf) == 0 {
-		buf, err = l2.slowCache.Get(key)
+		b, err := l2.slowCache.Get(key)
 		if err != nil {
-			return
+			return err
 		}
+		buf = b
 		// 成功从slowcache获取缓存，则将数据设置回lru ttl
 		if len(buf) != 0 {
 			ttl, _ := l2.slowCache.TTL(key)
@@ -162,15 +163,15 @@ func (l2 *L2Cache) Get(key string, result interface{}) (err error) {
 	if fn == nil {
 		fn = json.Unmarshal
 	}
-	err = fn(buf, result)
+	err := fn(buf, result)
 	if err != nil {
-		return
+		return err
 	}
-	return
+	return nil
 }
 
 // Set converts the value to bytes, then set it to lru cache and slow cache
-func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) (err error) {
+func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) error {
 	key = l2.getKey(key)
 	fn := l2.marshal
 	if fn == nil {
@@ -178,7 +179,7 @@ func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) (err
 	}
 	buf, err := fn(value)
 	if err != nil {
-		return
+		return err
 	}
 	t := l2.ttl
 	if len(ttl) != 0 {
@@ -187,8 +188,8 @@ func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) (err
 	// 先设置较慢的缓存
 	err = l2.slowCache.Set(key, buf, t)
 	if err != nil {
-		return
+		return err
 	}
 	l2.ttlCache.Add(key, buf, t)
-	return
+	return nil
 }

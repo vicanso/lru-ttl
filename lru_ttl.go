@@ -133,24 +133,22 @@ func (c *Cache) TTL(key Key) time.Duration {
 // Peek get a key's value from the cache, but not move to front.
 // The performance is better than get.
 // It will not remove it if the cache is expired.
-func (c *Cache) Peek(key Key) (value interface{}, ok bool) {
+func (c *Cache) Peek(key Key) (interface{}, bool) {
 	data, ok := c.lru.Peek(key)
 	if !ok {
-		return
+		return nil, false
 	}
 	item, ok := data.(*cacheItem)
 	if !ok {
-		return
+		return nil, false
 	}
 	// 过期的元素数据也返回，但ok为false
-	value = item.value
+	value := item.value
 	if item.isExpired() {
-		ok = false
 		// 过期不清除
-		return
+		return value, false
 	}
-	ok = true
-	return
+	return value, true
 }
 
 // Remove removes the key's value from the cache.
