@@ -20,15 +20,16 @@ package lruttl
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
 )
 
 type SlowCache interface {
-	Get(key string) ([]byte, error)
-	Set(key string, value []byte, ttl time.Duration) error
-	TTL(key string) (time.Duration, error)
+	Get(ctx context.Context, key string) ([]byte, error)
+	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	TTL(ctx context.Context, key string) (time.Duration, error)
 }
 
 // L2CacheOption l2cache option
@@ -120,19 +121,19 @@ func (l2 *L2Cache) getKey(key string) string {
 }
 
 // TTL returns the ttl for key
-func (l2 *L2Cache) TTL(key string) (time.Duration, error) {
+func (l2 *L2Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 	key = l2.getKey(key)
 	d := l2.ttlCache.TTL(key)
 	if d > 0 {
 		return d, nil
 	}
-	return l2.slowCache.TTL(key)
+	return l2.slowCache.TTL(ctx, key)
 }
 
 // Get first get cache from lru, if not exists,
 // then get the data from slow cache.
 // Use unmarshal function covert the data to result
-func (l2 *L2Cache) Get(key string, result interface{}) error {
+func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
 	key = l2.getKey(key)
 	v, ok := l2.ttlCache.Get(key)
 	var buf []byte
@@ -146,14 +147,14 @@ func (l2 *L2Cache) Get(key string, result interface{}) error {
 	// 有可能数据未过期但lru空间较小，因此被删除
 	// 也有可能lru中数据过期但 slow cache中数据已更新
 	if len(buf) == 0 {
-		b, err := l2.slowCache.Get(key)
+		b, err := l2.slowCache.Get(ctx, key)
 		if err != nil {
 			return err
 		}
 		buf = b
 		// 成功从slowcache获取缓存，则将数据设置回lru ttl
 		if len(buf) != 0 {
-			ttl, _ := l2.slowCache.TTL(key)
+			ttl, _ := l2.slowCache.TTL(ctx, key)
 			if ttl != 0 {
 				l2.ttlCache.Add(key, buf, ttl)
 			}
@@ -171,7 +172,7 @@ func (l2 *L2Cache) Get(key string, result interface{}) error {
 }
 
 // Set converts the value to bytes, then set it to lru cache and slow cache
-func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) error {
+func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl ...time.Duration) error {
 	key = l2.getKey(key)
 	fn := l2.marshal
 	if fn == nil {
@@ -186,7 +187,7 @@ func (l2 *L2Cache) Set(key string, value interface{}, ttl ...time.Duration) erro
 		t = ttl[0]
 	}
 	// 先设置较慢的缓存
-	err = l2.slowCache.Set(key, buf, t)
+	err = l2.slowCache.Set(ctx, key, buf, t)
 	if err != nil {
 		return err
 	}

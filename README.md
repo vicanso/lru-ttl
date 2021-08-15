@@ -21,12 +21,13 @@ cache.Add("tree.xie", "my data", time.Second)
 ```go
 // redisCache
 l2 := lruttl.NewL2Cache(redisCache, 200, 10 * time.Minute)
-err := l2.Set("key", &map[string]string{
+ctx := context.Background()
+err := l2.Set(ctx, "key", &map[string]string{
     "name": "test",
 })
 fmt.Println(err)
 m := make(map[string]string)
-err = l2.Get("key", &m)
+err = l2.Get(ctx, "key", &m)
 fmt.Println(err)
 fmt.Println(m)
 ```

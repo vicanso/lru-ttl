@@ -15,6 +15,7 @@ package lruttl
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -29,7 +30,7 @@ type testSlowCache struct {
 
 const slowCacheTTL = 101 * time.Millisecond
 
-func (sc *testSlowCache) Get(key string) ([]byte, error) {
+func (sc *testSlowCache) Get(_ context.Context, key string) ([]byte, error) {
 	buf, ok := sc.data[key]
 	if !ok {
 		return nil, errors.New("not found")
@@ -38,11 +39,11 @@ func (sc *testSlowCache) Get(key string) ([]byte, error) {
 	return buf, nil
 }
 
-func (sc *testSlowCache) Set(key string, value []byte, ttl time.Duration) error {
+func (sc *testSlowCache) Set(_ context.Context, key string, value []byte, ttl time.Duration) error {
 	sc.data[key] = value
 	return nil
 }
-func (sc *testSlowCache) TTL(key string) (time.Duration, error) {
+func (sc *testSlowCache) TTL(_ context.Context, key string) (time.Duration, error) {
 	return slowCacheTTL, nil
 }
 
@@ -52,6 +53,7 @@ type testData struct {
 
 func TestL2Cache(t *testing.T) {
 	assert := assert.New(t)
+	ctx := context.Background()
 
 	sc := testSlowCache{
 		data: make(map[string][]byte),
@@ -69,43 +71,43 @@ func TestL2Cache(t *testing.T) {
 	name := "test"
 	data := testData{}
 
-	err := l2.Get(key, &data)
+	err := l2.Get(ctx, key, &data)
 	assert.NotNil(err)
 	assert.Equal("not found", err.Error())
 
-	err = l2.Set(key, &testData{
+	err = l2.Set(ctx, key, &testData{
 		Name: name,
 	})
 	assert.Nil(err)
 
 	// 成功获取
-	err = l2.Get(key, &data)
+	err = l2.Get(ctx, key, &data)
 	assert.Nil(err)
 	assert.Equal(name, data.Name)
 
 	// 由于lru的大小令为1，因此会导致lru中清除了原有的key
-	err = l2.Set("ab", &testData{})
+	err = l2.Set(ctx, "ab", &testData{})
 	assert.Nil(err)
 
 	// 从slow cache中获取数据并更新lru缓存
-	err = l2.Get(key, &data)
+	err = l2.Get(ctx, key, &data)
 	assert.Nil(err)
 	assert.Equal(name, data.Name)
 
 	// 从lru获取缓存（时间较快)
 	start := time.Now()
-	err = l2.Get(key, &data)
+	err = l2.Get(ctx, key, &data)
 	assert.Nil(err)
 	assert.Equal(name, data.Name)
 	// 从lru获取耗时少于10ms
 	assert.True(time.Since(start) < 10*time.Millisecond)
 
-	err = l2.Set(key, &map[string]string{
+	err = l2.Set(ctx, key, &map[string]string{
 		"name": "newName",
 	})
 	assert.Nil(err)
 	m := make(map[string]string)
-	err = l2.Get(key, &m)
+	err = l2.Get(ctx, key, &m)
 	assert.Nil(err)
 	assert.Equal("newName", m["name"])
 }
@@ -115,19 +117,20 @@ func TestL2CacheTTL(t *testing.T) {
 	sc := testSlowCache{
 		data: make(map[string][]byte),
 	}
+	ctx := context.Background()
 	l2 := NewL2Cache(&sc, 10, 10*time.Second)
 	key := "test"
-	err := l2.Set(key, "value", 2*time.Second)
+	err := l2.Set(ctx, key, "value", 2*time.Second)
 	assert.Nil(err)
 
-	ttl, err := l2.TTL(key)
+	ttl, err := l2.TTL(ctx, key)
 	assert.Nil(err)
 	// 从lru中获取
 	assert.True(ttl > time.Second && ttl <= 2*time.Second)
 
 	l2.ttlCache.Remove(key)
 
-	ttl, err = l2.TTL(key)
+	ttl, err = l2.TTL(ctx, key)
 	assert.Nil(err)
 	// 从slow cache中获取，slow cache获取ttl为固定值
 	assert.Equal(slowCacheTTL, ttl)
