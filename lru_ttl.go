@@ -89,25 +89,23 @@ func (c *Cache) Add(key Key, value interface{}, ttl ...time.Duration) {
 
 // Get returns value and exists from the cache by key, if value is expired then remove it.
 // If the value is expired, value is not nil but exists is false.
-func (c *Cache) Get(key Key) (value interface{}, ok bool) {
+func (c *Cache) Get(key Key) (interface{}, bool) {
 	data, ok := c.lru.Get(key)
 	if !ok {
-		return
+		return nil, false
 	}
 	item, ok := data.(*cacheItem)
 	if !ok {
-		return
+		return nil, false
 	}
 	// 过期的元素数据也返回，但ok为false
-	value = item.value
+	value := item.value
 	if item.isExpired() {
-		ok = false
 		// 过期的元素删除
 		c.lru.Remove(key)
-		return
+		return value, false
 	}
-	ok = true
-	return
+	return value, true
 }
 
 // TTL returns the ttl of key

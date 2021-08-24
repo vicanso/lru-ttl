@@ -38,9 +38,11 @@ func TestLRUTTL(t *testing.T) {
 	assert.True(ok)
 	assert.Equal(value, data)
 
+	// 添加新的数据
 	key1 := 123
 	value1 := []byte("bar1")
 	cache.Add(key1, value1, 100*time.Millisecond)
+	// 由于长度限制为1，因此原来的数据被清除
 	_, ok = cache.Get(key)
 	assert.False(ok)
 	assert.Equal(1, cache.Len())
@@ -48,11 +50,19 @@ func TestLRUTTL(t *testing.T) {
 	_, ok = cache.Get(key1)
 	assert.True(ok)
 	time.Sleep(500 * time.Millisecond)
-	_, ok = cache.Get(key1)
+	// 数据过期，peek不清除，数据有返回
+	item, ok := cache.Peek(key1)
 	assert.False(ok)
+	assert.NotNil(item)
+	// 数据过期，get时清除，数据有返回
+	item, ok = cache.Get(key1)
+	assert.False(ok)
+	assert.NotNil(item)
 
+	// 添加数据
 	cache.Add(key, value)
 	assert.Equal(1, cache.Len())
+	// 清除数据
 	cache.Remove(key)
 	assert.Equal(0, cache.Len())
 

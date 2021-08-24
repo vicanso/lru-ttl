@@ -30,13 +30,16 @@ type SlowCache interface {
 	Get(ctx context.Context, key string) ([]byte, error)
 	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	TTL(ctx context.Context, key string) (time.Duration, error)
+	Del(ctx context.Context, key string) error
 }
 
 // L2CacheOption l2cache option
 type L2CacheOption func(c *L2Cache)
 
-// A l2cache for frequently visited  data
+type L2CacheMarshal func(v interface{}) ([]byte, error)
+type L2CacheUnmarshal func(data []byte, v interface{}) error
 
+// A l2cache for frequently visited  data
 type L2Cache struct {
 	// prefix is the prefix of all key, it will auto prepend to the key
 	prefix string
@@ -48,14 +51,17 @@ type L2Cache struct {
 	slowCache SlowCache
 	// marshal is custom marshal function.
 	// It will be json.Marshal if not set
-	marshal func(v interface{}) ([]byte, error)
+	marshal L2CacheMarshal
 	// unmarshal is custom unmarshal function.
 	// It will be json.Unmarshal if not set
-	unmarshal func(data []byte, v interface{}) error
+	unmarshal L2CacheUnmarshal
 }
 
 // ErrIsNil is the error of nil cache
 var ErrIsNil = errors.New("cache is nil")
+
+// ErrKeyIsNil is the error of nil key
+var ErrKeyIsNil = errors.New("key is nil")
 
 // ErrInvalidType is the error of invalid type
 var ErrInvalidType = errors.New("invalid type")
@@ -95,46 +101,57 @@ func NewL2Cache(slowCache SlowCache, maxEntries int, defaultTTL time.Duration, o
 	return c
 }
 
-// L2CacheMarshalOption set custom marshal function for l2cache
-func L2CacheMarshalOption(fn func(v interface{}) ([]byte, error)) L2CacheOption {
+// L2CacheMarshalOption sets custom marshal function for l2cache
+func L2CacheMarshalOption(fn L2CacheMarshal) L2CacheOption {
 	return func(c *L2Cache) {
 		c.marshal = fn
 	}
 }
 
-// L2CacheUnmarshalOption set custom unmarshal function for l2cache
-func L2CacheUnmarshalOption(fn func(data []byte, v interface{}) error) L2CacheOption {
+// L2CacheUnmarshalOption sets custom unmarshal function for l2cache
+func L2CacheUnmarshalOption(fn L2CacheUnmarshal) L2CacheOption {
 	return func(c *L2Cache) {
 		c.unmarshal = fn
 	}
 }
 
-// L2CachePrefixOption set prefix for l2cache
+// L2CachePrefixOption sets prefix for l2cache
 func L2CachePrefixOption(prefix string) L2CacheOption {
 	return func(c *L2Cache) {
 		c.prefix = prefix
 	}
 }
 
-func (l2 *L2Cache) getKey(key string) string {
-	return l2.prefix + key
+func (l2 *L2Cache) getKey(key string) (string, error) {
+	if key == "" {
+		return "", ErrKeyIsNil
+	}
+	return l2.prefix + key, nil
 }
 
 // TTL returns the ttl for key
 func (l2 *L2Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
-	key = l2.getKey(key)
+	key, err := l2.getKey(key)
+	if err != nil {
+		return 0, err
+	}
 	d := l2.ttlCache.TTL(key)
-	if d > 0 {
+	// 小于0的表示不存在
+	// 由于lru有大小限制，不存在时则从slow cache获取
+	if d >= 0 {
 		return d, nil
 	}
 	return l2.slowCache.TTL(ctx, key)
 }
 
-// Get first get cache from lru, if not exists,
-// then get the data from slow cache.
-// Use unmarshal function covert the data to result
+// Get gets data from lru cache first, if not exists,
+// then gets the data from slow cache.
+// Use unmarshal function coverts the data to result
 func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
-	key = l2.getKey(key)
+	key, err := l2.getKey(key)
+	if err != nil {
+		return err
+	}
 	v, ok := l2.ttlCache.Get(key)
 	var buf []byte
 	// 获取成功，而数据不为nil
@@ -164,7 +181,7 @@ func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) erro
 	if fn == nil {
 		fn = json.Unmarshal
 	}
-	err := fn(buf, result)
+	err = fn(buf, result)
 	if err != nil {
 		return err
 	}
@@ -173,7 +190,10 @@ func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) erro
 
 // Set converts the value to bytes, then set it to lru cache and slow cache
 func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl ...time.Duration) error {
-	key = l2.getKey(key)
+	key, err := l2.getKey(key)
+	if err != nil {
+		return err
+	}
 	fn := l2.marshal
 	if fn == nil {
 		fn = json.Marshal
@@ -193,4 +213,14 @@ func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl .
 	}
 	l2.ttlCache.Add(key, buf, t)
 	return nil
+}
+
+// Del deletes data from lru cache and slow cache
+func (l2 *L2Cache) Del(ctx context.Context, key string) error {
+	key, err := l2.getKey(key)
+	if err != nil {
+		return err
+	}
+	l2.ttlCache.Remove(key)
+	return l2.slowCache.Del(ctx, key)
 }

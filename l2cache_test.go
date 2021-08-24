@@ -47,6 +47,11 @@ func (sc *testSlowCache) TTL(_ context.Context, key string) (time.Duration, erro
 	return slowCacheTTL, nil
 }
 
+func (sc *testSlowCache) Del(_ context.Context, key string) error {
+	delete(sc.data, key)
+	return nil
+}
+
 type testData struct {
 	Name string `json:"name,omitempty"`
 }
@@ -65,13 +70,17 @@ func TestL2Cache(t *testing.T) {
 	}
 	l2 := NewL2Cache(&sc, 1, time.Second, opts...)
 
-	assert.Equal("prefix:1", l2.getKey("1"))
+	key, err := l2.getKey("1")
+	assert.Nil(err)
+	assert.Equal("prefix:1", key)
+	_, err = l2.getKey("")
+	assert.Equal(ErrKeyIsNil, err)
 
-	key := "abcd"
+	key = "abcd"
 	name := "test"
 	data := testData{}
 
-	err := l2.Get(ctx, key, &data)
+	err = l2.Get(ctx, key, &data)
 	assert.NotNil(err)
 	assert.Equal("not found", err.Error())
 
@@ -134,6 +143,32 @@ func TestL2CacheTTL(t *testing.T) {
 	assert.Nil(err)
 	// 从slow cache中获取，slow cache获取ttl为固定值
 	assert.Equal(slowCacheTTL, ttl)
+}
+
+func TestL2CacheDel(t *testing.T) {
+	assert := assert.New(t)
+	sc := testSlowCache{
+		data: make(map[string][]byte),
+	}
+	ctx := context.Background()
+	l2 := NewL2Cache(&sc, 10, 10*time.Second)
+	key := "test"
+	value := "value"
+	err := l2.Set(ctx, key, value, 2*time.Second)
+	assert.Nil(err)
+
+	result := ""
+	err = l2.Get(ctx, key, &result)
+	assert.Nil(err)
+	assert.Equal(value, result)
+
+	err = l2.Del(ctx, key)
+	assert.Nil(err)
+
+	// 删除后再获取失败
+	err = l2.Get(ctx, key, &result)
+	assert.Equal("not found", err.Error())
+
 }
 
 func TestBufferMarshalUnmarshal(t *testing.T) {
