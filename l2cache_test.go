@@ -47,9 +47,9 @@ func (sc *testSlowCache) TTL(_ context.Context, key string) (time.Duration, erro
 	return slowCacheTTL, nil
 }
 
-func (sc *testSlowCache) Del(_ context.Context, key string) error {
+func (sc *testSlowCache) Del(_ context.Context, key string) (int64, error) {
 	delete(sc.data, key)
-	return nil
+	return 1, nil
 }
 
 type testData struct {
@@ -162,7 +162,8 @@ func TestL2CacheDel(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(value, result)
 
-	err = l2.Del(ctx, key)
+	count, err := l2.Del(ctx, key)
+	assert.Equal(int64(1), count)
 	assert.Nil(err)
 
 	// 删除后再获取失败

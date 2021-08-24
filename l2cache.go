@@ -30,7 +30,7 @@ type SlowCache interface {
 	Get(ctx context.Context, key string) ([]byte, error)
 	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	TTL(ctx context.Context, key string) (time.Duration, error)
-	Del(ctx context.Context, key string) error
+	Del(ctx context.Context, key string) (int64, error)
 }
 
 // L2CacheOption l2cache option
@@ -216,10 +216,10 @@ func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl .
 }
 
 // Del deletes data from lru cache and slow cache
-func (l2 *L2Cache) Del(ctx context.Context, key string) error {
+func (l2 *L2Cache) Del(ctx context.Context, key string) (int64, error) {
 	key, err := l2.getKey(key)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	l2.ttlCache.Remove(key)
 	return l2.slowCache.Del(ctx, key)
