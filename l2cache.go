@@ -144,13 +144,12 @@ func (l2 *L2Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 	return l2.slowCache.TTL(ctx, key)
 }
 
-// Get gets data from lru cache first, if not exists,
+// GetBytes gets data from lur cache first, if not exists,
 // then gets the data from slow cache.
-// Use unmarshal function coverts the data to result
-func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
+func (l2 *L2Cache) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	key, err := l2.getKey(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	v, ok := l2.ttlCache.Get(key)
 	var buf []byte
@@ -166,7 +165,7 @@ func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) erro
 	if len(buf) == 0 {
 		b, err := l2.slowCache.Get(ctx, key)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		buf = b
 		// 成功从slowcache获取缓存，则将数据设置回lru ttl
@@ -177,6 +176,33 @@ func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) erro
 			}
 		}
 	}
+	return buf, nil
+}
+
+// SetBytes sets data to lru cache and slow cache
+func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
+	t := l2.ttl
+	if len(ttl) != 0 && ttl[0] != 0 {
+		t = ttl[0]
+	}
+	// 先设置较慢的缓存
+	err := l2.slowCache.Set(ctx, key, value, t)
+	if err != nil {
+		return err
+	}
+	l2.ttlCache.Add(key, value, t)
+	return nil
+}
+
+// Get gets data from lru cache first, if not exists,
+// then gets the data from slow cache.
+// Use unmarshal function coverts the data to result
+func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
+	buf, err := l2.GetBytes(ctx, key)
+	if err != nil {
+		return err
+	}
+
 	fn := l2.unmarshal
 	if fn == nil {
 		fn = json.Unmarshal
@@ -188,7 +214,7 @@ func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) erro
 	return nil
 }
 
-// Set converts the value to bytes, then set it to lru cache and slow cache
+// Set converts the value to bytes, then sets it to lru cache and slow cache
 func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl ...time.Duration) error {
 	key, err := l2.getKey(key)
 	if err != nil {
@@ -202,17 +228,7 @@ func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl .
 	if err != nil {
 		return err
 	}
-	t := l2.ttl
-	if len(ttl) != 0 {
-		t = ttl[0]
-	}
-	// 先设置较慢的缓存
-	err = l2.slowCache.Set(ctx, key, buf, t)
-	if err != nil {
-		return err
-	}
-	l2.ttlCache.Add(key, buf, t)
-	return nil
+	return l2.SetBytes(ctx, key, buf, ttl...)
 }
 
 // Del deletes data from lru cache and slow cache
