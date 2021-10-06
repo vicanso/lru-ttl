@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/vicanso/lru-ttl/workflows/Test/badge.svg)](https://github.com/vicanso/lru-ttl/actions)
 
 LRU cache with ttl. It's useful for short ttl cache. 
-L2Cache use lru cache for the first cache, and slow cache for the second cache. Lru cache should be set max entries for less memory usage but faster, slow cache is slower but more space.
+L2Cache use lru cache as first cache, and slow cache as second cache. Lru cache should be set max entries for less memory usage but faster, slow cache is slower but larger capacity.
 
 ## LRU TTL
 

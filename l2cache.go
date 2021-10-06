@@ -144,13 +144,9 @@ func (l2 *L2Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 	return l2.slowCache.TTL(ctx, key)
 }
 
-// GetBytes gets data from lur cache first, if not exists,
+// getBytes gets data from lur cache first, if not exists,
 // then gets the data from slow cache.
-func (l2 *L2Cache) GetBytes(ctx context.Context, key string) ([]byte, error) {
-	key, err := l2.getKey(key)
-	if err != nil {
-		return nil, err
-	}
+func (l2 *L2Cache) getBytes(ctx context.Context, key string) ([]byte, error) {
 	v, ok := l2.ttlCache.Get(key)
 	var buf []byte
 	// 获取成功，而数据不为nil
@@ -179,8 +175,18 @@ func (l2 *L2Cache) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	return buf, nil
 }
 
-// SetBytes sets data to lru cache and slow cache
-func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
+// GetBytes gets data from lur cache first, if not exists,
+// then gets the data from slow cache.
+func (l2 *L2Cache) GetBytes(ctx context.Context, key string) ([]byte, error) {
+	key, err := l2.getKey(key)
+	if err != nil {
+		return nil, err
+	}
+	return l2.getBytes(ctx, key)
+}
+
+// setBytes sets data to lru cache and slow cache
+func (l2 *L2Cache) setBytes(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
 	t := l2.ttl
 	if len(ttl) != 0 && ttl[0] != 0 {
 		t = ttl[0]
@@ -194,11 +200,24 @@ func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl .
 	return nil
 }
 
+// SetBytes sets data to lru cache and slow cache
+func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
+	key, err := l2.getKey(key)
+	if err != nil {
+		return err
+	}
+	return l2.setBytes(ctx, key, value, ttl...)
+}
+
 // Get gets data from lru cache first, if not exists,
 // then gets the data from slow cache.
 // Use unmarshal function coverts the data to result
 func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
-	buf, err := l2.GetBytes(ctx, key)
+	key, err := l2.getKey(key)
+	if err != nil {
+		return err
+	}
+	buf, err := l2.getBytes(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -228,7 +247,7 @@ func (l2 *L2Cache) Set(ctx context.Context, key string, value interface{}, ttl .
 	if err != nil {
 		return err
 	}
-	return l2.SetBytes(ctx, key, buf, ttl...)
+	return l2.setBytes(ctx, key, buf, ttl...)
 }
 
 // Del deletes data from lru cache and slow cache
