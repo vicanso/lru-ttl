@@ -178,6 +178,7 @@ func (l2 *L2Cache) getBytes(ctx context.Context, key string) ([]byte, error) {
 // GetBytes gets data from lur cache first, if not exists,
 // then gets the data from slow cache.
 func (l2 *L2Cache) GetBytes(ctx context.Context, key string) ([]byte, error) {
+	// 由公有函数来生成key，避免私有调用生成时如果循环调用多次添加prefix
 	key, err := l2.getKey(key)
 	if err != nil {
 		return nil, err
@@ -202,6 +203,7 @@ func (l2 *L2Cache) setBytes(ctx context.Context, key string, value []byte, ttl .
 
 // SetBytes sets data to lru cache and slow cache
 func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
+	// 由公有函数来生成key，避免私有调用生成时如果循环调用多次添加prefix
 	key, err := l2.getKey(key)
 	if err != nil {
 		return err
@@ -213,6 +215,7 @@ func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl .
 // then gets the data from slow cache.
 // Use unmarshal function coverts the data to result
 func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
+	// 由公有函数来生成key，避免私有调用生成时如果循环调用多次添加prefix
 	key, err := l2.getKey(key)
 	if err != nil {
 		return err
