@@ -49,18 +49,23 @@ func New(maxEntries int, defaultTTL time.Duration, opts ...CacheOption) *Cache {
 	c := &Cache{
 		ttl: defaultTTL,
 	}
-	l, err := lru.NewWithEvict(maxEntries, func(key, value interface{}) {
-		if c.onEvicted != nil {
+	for _, opt := range opts {
+		opt(c)
+	}
+	var fn func(key, value interface{})
+	// 如果有设置on evicted
+	if c.onEvicted != nil {
+		fn = func(key, value interface{}) {
 			c.onEvicted(key, value)
 		}
-	})
+	}
+
+	l, err := lru.NewWithEvict(maxEntries, fn)
 	if err != nil {
 		panic(err)
 	}
 	c.lru = l
-	for _, opt := range opts {
-		opt(c)
-	}
+
 	return c
 
 }
@@ -98,6 +103,8 @@ func (c *Cache) Get(key Key) (interface{}, bool) {
 		return nil, false
 	}
 	// 过期的元素数据也返回，但ok为false
+	// 由于未做并发控制，因此有可能并发时导致数据被清除（另外一个goroutine刚好在更新)
+	// 由于是缓存数据并不会导致数据出错，因此不添加并发控制
 	value := item.value
 	if item.isExpired() {
 		// 过期的元素删除

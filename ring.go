@@ -19,7 +19,7 @@ import "time"
 type ringCache struct {
 	// lru cache list
 	lruCaches []*Cache
-	size      uint64
+	size      int
 }
 
 type RingCacheParams struct {
@@ -43,13 +43,13 @@ func NewRing(params RingCacheParams, opts ...CacheOption) *ringCache {
 	}
 	return &ringCache{
 		lruCaches: lruCaches,
-		size:      uint64(params.Size),
+		size:      params.Size,
 	}
 }
 
 // Get returns the lru ttl cache by key
 func (rc *ringCache) Get(key string) *Cache {
 	value := MemHashString(key)
-	index := int(value % rc.size)
+	index := int(value % uint64(rc.size))
 	return rc.lruCaches[index]
 }

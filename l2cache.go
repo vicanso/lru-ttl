@@ -83,13 +83,16 @@ func BufferUnmarshal(data []byte, result interface{}) error {
 	if !ok {
 		return ErrInvalidType
 	}
-	buf.Write(data)
-	return nil
+	_, err := buf.Write(data)
+	return err
 }
 
 // NewL2Cache return a new L2Cache,
 // it returns panic if maxEntries or defaultTTL is nil
 func NewL2Cache(slowCache SlowCache, maxEntries int, defaultTTL time.Duration, opts ...L2CacheOption) *L2Cache {
+	if defaultTTL < time.Second {
+		panic("default ttl should be gt one second")
+	}
 	c := &L2Cache{
 		ttl:       defaultTTL,
 		ttlCache:  New(maxEntries, defaultTTL),
@@ -144,18 +147,18 @@ func (l2 *L2Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 	return l2.slowCache.TTL(ctx, key)
 }
 
-// getBytes gets data from lur cache first, if not exists,
+// getBytes gets data from lru cache first, if not exists,
 // then gets the data from slow cache.
 func (l2 *L2Cache) getBytes(ctx context.Context, key string) ([]byte, error) {
 	v, ok := l2.ttlCache.Get(key)
 	var buf []byte
 	// 获取成功，而数据不为nil
-	// 如果ok为false时，数据也可能不为空（已过期）
+	// ok为false时，数据也可能不为空（已过期）
 	if ok && v != nil {
 		buf, _ = v.([]byte)
 	}
 	// 从lru中获取到可用数据
-	// 从lru中数据不存在（数据不存在或过期都有可能）
+	// lru中数据不存在（数据不存在或过期都有可能）
 	// 有可能数据未过期但lru空间较小，因此被删除
 	// 也有可能lru中数据过期但 slow cache中数据已更新
 	if len(buf) == 0 {
@@ -166,6 +169,8 @@ func (l2 *L2Cache) getBytes(ctx context.Context, key string) ([]byte, error) {
 		buf = b
 		// 成功从slowcache获取缓存，则将数据设置回lru ttl
 		if len(buf) != 0 {
+			// 获取ttl失败时忽略不设置lru cache即可
+			// 因此忽略错误
 			ttl, _ := l2.slowCache.TTL(ctx, key)
 			if ttl != 0 {
 				l2.ttlCache.Add(key, buf, ttl)
@@ -259,6 +264,7 @@ func (l2 *L2Cache) Del(ctx context.Context, key string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// 先清除ttl cache
 	l2.ttlCache.Remove(key)
 	return l2.slowCache.Del(ctx, key)
 }
