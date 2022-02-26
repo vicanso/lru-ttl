@@ -61,6 +61,8 @@ func New(maxEntries int, defaultTTL time.Duration, opts ...CacheOption) *Cache {
 	}
 
 	l, err := lru.NewWithEvict(maxEntries, fn)
+	// lru 缓存全局初始化，因此直接panic
+	// 除了长度少于0，其它情况不会出错
 	if err != nil {
 		panic(err)
 	}

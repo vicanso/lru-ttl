@@ -140,7 +140,8 @@ func (l2 *L2Cache) TTL(ctx context.Context, key string) (time.Duration, error) {
 	}
 	d := l2.ttlCache.TTL(key)
 	// 小于0的表示不存在
-	// 由于lru有大小限制，不存在时则从slow cache获取
+	// 由于lru有大小限制，可能由于空间不够导致不存在
+	// 不存在时则从slow cache获取
 	if d >= 0 {
 		return d, nil
 	}
