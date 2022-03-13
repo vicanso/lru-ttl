@@ -116,6 +116,16 @@ func (c *Cache) Get(key Key) (interface{}, bool) {
 	return value, true
 }
 
+// GetBytes is the same as Get function, but returns []byte
+func (c *Cache) GetBytes(key Key) ([]byte, bool) {
+	value, ok := c.Get(key)
+	var buf []byte
+	if value != nil {
+		buf, _ = value.([]byte)
+	}
+	return buf, ok
+}
+
 // TTL returns the ttl of key
 func (c *Cache) TTL(key Key) time.Duration {
 	data, ok := c.lru.Peek(key)
@@ -155,6 +165,16 @@ func (c *Cache) Peek(key Key) (interface{}, bool) {
 		return value, false
 	}
 	return value, true
+}
+
+// PeekBytes is the same as Peek function, but returns []byte
+func (c *Cache) PeekBytes(key Key) ([]byte, bool) {
+	value, ok := c.Peek(key)
+	var buf []byte
+	if value != nil {
+		buf, _ = value.([]byte)
+	}
+	return buf, ok
 }
 
 // Remove removes the key's value from the cache.

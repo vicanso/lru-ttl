@@ -208,3 +208,20 @@ func TestLRUTTLCacheOnEvicted(t *testing.T) {
 	assert.Equal(2, evictedCount)
 
 }
+
+func TestGetAndPeekBytes(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := New(10, time.Minute)
+	key := "key"
+
+	cache.Add(key, []byte("abc"))
+
+	data, ok := cache.GetBytes(key)
+	assert.True(ok)
+	assert.Equal([]byte("abc"), data)
+
+	data, ok = cache.PeekBytes(key)
+	assert.True(ok)
+	assert.Equal([]byte("abc"), data)
+}
