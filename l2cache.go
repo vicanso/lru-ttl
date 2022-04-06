@@ -55,6 +55,8 @@ type L2Cache struct {
 	// unmarshal is custom unmarshal function.
 	// It will be json.Unmarshal if not set
 	unmarshal L2CacheUnmarshal
+
+	nilErr error
 }
 
 // ErrIsNil is the error of nil cache
@@ -122,6 +124,13 @@ func L2CacheUnmarshalOption(fn L2CacheUnmarshal) L2CacheOption {
 func L2CachePrefixOption(prefix string) L2CacheOption {
 	return func(c *L2Cache) {
 		c.prefix = prefix
+	}
+}
+
+// L2CacheNilErrOption set nil error for l2cache
+func L2CacheNilErrOption(nilErr error) L2CacheOption {
+	return func(c *L2Cache) {
+		c.nilErr = nilErr
 	}
 }
 
@@ -221,6 +230,22 @@ func (l2 *L2Cache) SetBytes(ctx context.Context, key string, value []byte, ttl .
 // then gets the data from slow cache.
 // Use unmarshal function coverts the data to result
 func (l2 *L2Cache) Get(ctx context.Context, key string, result interface{}) error {
+	return l2.get(ctx, key, result)
+}
+
+// Get gets data from lru cache first, if not exists,
+// then gets the data from slow cache.
+// Use unmarshal function coverts the data to result.
+// It will not return nil error.
+func (l2 *L2Cache) GetIgnoreNilErr(ctx context.Context, key string, result interface{}) error {
+	err := l2.get(ctx, key, result)
+	if err != nil && err == l2.nilErr {
+		err = nil
+	}
+	return err
+}
+
+func (l2 *L2Cache) get(ctx context.Context, key string, result interface{}) error {
 	// 由公有函数来生成key，避免私有调用生成时如果循环调用多次添加prefix
 	key, err := l2.getKey(key)
 	if err != nil {

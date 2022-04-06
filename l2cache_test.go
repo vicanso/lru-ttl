@@ -30,10 +30,12 @@ type testSlowCache struct {
 
 const slowCacheTTL = 101 * time.Millisecond
 
+var testSlowCacheNilErr = errors.New("not found")
+
 func (sc *testSlowCache) Get(_ context.Context, key string) ([]byte, error) {
 	buf, ok := sc.data[key]
 	if !ok {
-		return nil, errors.New("not found")
+		return nil, testSlowCacheNilErr
 	}
 	time.Sleep(time.Second)
 	return buf, nil
@@ -67,6 +69,7 @@ func TestL2Cache(t *testing.T) {
 		L2CacheMarshalOption(json.Marshal),
 		L2CacheUnmarshalOption(json.Unmarshal),
 		L2CachePrefixOption("prefix:"),
+		L2CacheNilErrOption(testSlowCacheNilErr),
 	}
 	l2 := NewL2Cache(&sc, 1, time.Second, opts...)
 
@@ -119,6 +122,12 @@ func TestL2Cache(t *testing.T) {
 	err = l2.Get(ctx, key, &m)
 	assert.Nil(err)
 	assert.Equal("newName", m["name"])
+
+	err = l2.Get(ctx, "abc", &map[string]string{})
+	assert.NotNil(err)
+
+	err = l2.GetIgnoreNilErr(ctx, "abc", &map[string]string{})
+	assert.Nil(err)
 }
 
 func TestL2CacheTTL(t *testing.T) {
@@ -169,7 +178,23 @@ func TestL2CacheDel(t *testing.T) {
 	// 删除后再获取失败
 	err = l2.Get(ctx, key, &result)
 	assert.Equal("not found", err.Error())
+}
 
+func TestGetSetBytes(t *testing.T) {
+	assert := assert.New(t)
+	sc := testSlowCache{
+		data: make(map[string][]byte),
+	}
+	ctx := context.Background()
+	l2 := NewL2Cache(&sc, 10, 10*time.Second)
+
+	key := "TestGetSetBytes"
+	err := l2.SetBytes(ctx, key, []byte("abc"))
+	assert.Nil(err)
+
+	buf, err := l2.GetBytes(ctx, key)
+	assert.Nil(err)
+	assert.Equal([]byte("abc"), buf)
 }
 
 func TestBufferMarshalUnmarshal(t *testing.T) {
